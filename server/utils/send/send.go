@@ -5,6 +5,10 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net"
+	"strings"
+	"sync"
+
 	"github.com/Jinnrry/pmail/config"
 	"github.com/Jinnrry/pmail/dto/parsemail"
 	"github.com/Jinnrry/pmail/models"
@@ -14,9 +18,6 @@ import (
 	"github.com/Jinnrry/pmail/utils/context"
 	"github.com/Jinnrry/pmail/utils/smtp"
 	log "github.com/sirupsen/logrus"
-	"net"
-	"strings"
-	"sync"
 )
 
 type mxDomain struct {
@@ -59,7 +60,7 @@ func Forward(ctx *context.Context, e *parsemail.Email, forwardAddress string, us
 					mxHost: "smtp." + args[1],
 				}
 				if err != nil {
-					log.WithContext(ctx).Errorf(s.EmailAddress, "域名mx记录查询失败")
+					log.WithContext(ctx).Errorf("域名mx记录查询失败: %s ", s.EmailAddress)
 				}
 				if len(mxInfo) > 0 {
 					address = mxDomain{
@@ -147,6 +148,13 @@ func Send(ctx *context.Context, e *parsemail.Email) (error, map[string]error) {
 					mxHost: "127.0.0.1",
 				}
 				toByDomain[address] = append(toByDomain[address], s)
+			} else if net.ParseIP(args[1]) != nil {
+				// IP地址直接使用
+				address := mxDomain{
+					domain: args[1],
+					mxHost: args[1],
+				}
+				toByDomain[address] = append(toByDomain[address], s)
 			} else {
 				//查询dns mx记录
 				mxInfo, err := net.LookupMX(args[1])
@@ -155,7 +163,7 @@ func Send(ctx *context.Context, e *parsemail.Email) (error, map[string]error) {
 					mxHost: "smtp." + args[1],
 				}
 				if err != nil {
-					log.WithContext(ctx).Errorf(s.EmailAddress, "域名mx记录查询失败，检查邮箱是否存在！")
+					log.WithContext(ctx).Errorf("域名mx记录查询失败，检查邮箱是否存在！%s", s.EmailAddress)
 				}
 				if len(mxInfo) > 0 {
 					address = mxDomain{
@@ -180,9 +188,12 @@ func Send(ctx *context.Context, e *parsemail.Email) (error, map[string]error) {
 		domain := domain
 		tos := tos
 		as.WaitProcess(func(p any) {
-
+			addresses := make([]string, 0, len(tos))
+			for _, user := range tos {
+				addresses = append(addresses, user.EmailAddress)
+			}
 			err := smtp.SendMail("", domain.mxHost+":25", nil, e.From.EmailAddress, fromDomain, buildAddress(tos), b)
-
+			log.WithContext(ctx).Warningf("非加密邮件投递失败，收件人: [%s], 错误: %+v，尝试其他方式...", strings.Join(addresses, ","), err)
 			// 使用其他方式发送
 			if err != nil {
 				// EOF 表示未知错误，此时降级为非tls连接发送（目前仅139邮箱有这个问题）
@@ -196,8 +207,8 @@ func Send(ctx *context.Context, e *parsemail.Email) (error, map[string]error) {
 
 				// 证书错误，从新选取证书发送
 				if certificateErr, ok := err.(*tls.CertificateVerificationError); ok {
-					// 单测使用
-					if domain.domain == "localhost" {
+					// 如果是内网IP或localhost，直接跳过证书验证
+					if domain.domain == "localhost" || net.ParseIP(domain.domain) != nil {
 						err = smtp.SendMailUnsafe("", domain.mxHost+":25", nil, e.From.EmailAddress, fromDomain, buildAddress(tos), b)
 					} else if hostnameErr, is := certificateErr.Err.(x509.HostnameError); is {
 						if hostnameErr.Certificate != nil {
@@ -210,7 +221,8 @@ func Send(ctx *context.Context, e *parsemail.Email) (error, map[string]error) {
 			}
 
 			if err != nil {
-				log.WithContext(ctx).Errorf("%v 邮件投递失败%+v", tos, err)
+
+				log.WithContext(ctx).Errorf("邮件投递失败，收件人: [%s], 错误: %+v", strings.Join(addresses, ","), err)
 				for _, user := range tos {
 					errEmailAddress = append(errEmailAddress, user.EmailAddress)
 				}
