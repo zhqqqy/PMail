@@ -7,3 +7,4 @@ server/plugins
 config
 *_KEY
 AURORA_SECRET
+pmail_*

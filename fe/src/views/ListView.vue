@@ -115,7 +115,8 @@ import {ref, watch} from 'vue'
 import useGroupStore from '../stores/group'
 import lang from '../i18n/i18n';
 import {http} from "@/utils/axios";
-import {ElMessage, ElMessageBox} from "element-plus";
+// 已经自动导入了 Element Plus 组件，重复导入会让样式不生效
+// import {ElMessage, ElMessageBox} from "element-plus";
 
 
 const router = useRouter();
@@ -244,6 +245,7 @@ const del = function () {
       cancelButtonClass: 'cancel-delete-btn'
     }
   ).then(() => {
+    // 如果是垃圾箱的邮件(groupTag.status === 3)就强制删除，否则就移动到垃圾箱
     http.post("/api/email/del", {"ids": ids, "forcedDel": groupTag.status === 3}).then(res => {
       if (res.errorNo === 0) {
         updateList()
@@ -341,86 +343,6 @@ const del = function () {
   justify-content: center;
 }
 
-/* 删除弹窗样式 */
-:global(.delete-confirm-box) {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: #2d3748;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  padding: 28px 32px;
-  width: 420px !important;
-  border: none !important;
-  color: #e2e8f0;
-}
-
-:global(.delete-confirm-box .el-message-box__header) {
-  position: relative;
-  padding: 0 0 20px 0;
-}
-
-:global(.delete-confirm-box .el-message-box__headerbtn) {
-  position: absolute;
-  right: 0;
-  top: 0;
-}
-
-:global(.delete-confirm-box .el-message-box__title) {
-  font-size: 20px;
-  font-weight: 600;
-  color: #e2e8f0;
-}
-
-:global(.delete-confirm-box .el-message-box__content) {
-  padding: 20px 0;
-  font-size: 16px;
-  color: #a0aec0;
-}
-
-:global(.delete-confirm-box .el-message-box__btns) {
-  padding: 20px 0 0 0;
-  text-align: right;
-}
-
-:global(.delete-confirm-box .el-message-box__btns button) {
-  min-width: 100px;
-  margin-left: 12px;
-  padding: 10px 20px;
-  font-size: 14px;
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-
-:global(.confirm-delete-btn) {
-  background-color: #ed64a6 !important;
-  border-color: #ed64a6 !important;
-  color: white !important;
-}
-
-:global(.confirm-delete-btn:hover) {
-  background-color: #d53f8c !important;
-  border-color: #d53f8c !important;
-  transform: translateY(-1px);
-}
-
-:global(.cancel-delete-btn) {
-  border: 1px solid #4a5568 !important;
-  color: #e2e8f0 !important;
-  background: transparent !important;
-}
-
-:global(.cancel-delete-btn:hover) {
-  background-color: #4a5568 !important;
-  transform: translateY(-1px);
-}
-
-:global(.delete-confirm-box .el-message-box__status) {
-  font-size: 24px !important;
-  color: #ed64a6 !important;
-  margin-right: 10px !important;
-}
 
 /* 添加遮罩层样式 */
 :global(.v-modal) {
